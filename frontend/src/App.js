@@ -1,161 +1,55 @@
-// import React, { useRef, useEffect, useState } from "react";
 
-// const App = () => {
-//   const videoRef = useRef(null);
-//   const [gesture, setGesture] = useState("");
-//   const [capturedGesture, setCapturedGesture] = useState([]);
-
-//   useEffect(() => {
-//     // Access the webcam stream
-//     navigator.mediaDevices
-//       .getUserMedia({ video: true })
-//       .then((stream) => {
-//         if (videoRef.current) {
-//           videoRef.current.srcObject = stream;
-//         }
-//       })
-//       .catch((error) => console.error("Error accessing webcam:", error));
-
-//     // Add event listener for keyboard input
-//     const handleKeyPress = (event) => {
-//       if (event.key === "s") {
-//         captureFrame();
-//       } 
-//       else if (event.key === "o") {
-//         sendToLLM();
-//       }
-//       // a training model part needs to be implemented
-//     };
-
-//     window.addEventListener("keydown", handleKeyPress);
-//     return () => {
-//       window.removeEventListener("keydown", handleKeyPress);
-//     };
-//   }, []);
-
-//   // Function to capture frame from webcam
-//   const captureFrame = () => {
-//     console.log("Capturing Frame...");
-//     const video = videoRef.current;
-//     if (!video) return;
-  
-//     const canvas = document.createElement("canvas");
-//     canvas.width = video.videoWidth;
-//     canvas.height = video.videoHeight;
-//     const ctx = canvas.getContext("2d");
-//     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  
-//     canvas.toBlob(async (blob) => {
-//       if (!blob) {
-//         console.error("Failed to capture frame");
-//         return;
-//       }
-  
-//       const formData = new FormData();
-//       formData.append("file", blob, "frame.jpg");
-  
-//       try {
-//         const response = await fetch("http://127.0.0.1:8000/predict/", {
-//           method: "POST",
-//           body: formData,
-//         });
-  
-//         const data = await response.json();
-//         console.log("Captured Gesture:", data.gesture); // Debugging
-  
-//         if (data.gesture) {
-//           setCapturedGesture((prevGestures) => {
-//             const newGestures = [...prevGestures, data.gesture];
-//             console.log("Updated Captured Gestures:", newGestures); // Debugging
-//             return newGestures;
-//           });
-//         } else {
-//           console.error("No valid gesture detected.");
-//         }
-//       } catch (error) {
-//         console.error("Error:", error);
-//       }
-//     }, "image/jpeg");
-//   };
-  
-  
-  
-
-//   // Function to send collected gestures to LLM
-//   const sendToLLM = async () => {
-//     console.log("Captured Gestures before sending:", capturedGesture); // Debugging
-  
-//     if (!capturedGesture || capturedGesture.length === 0) {
-//       console.error("Error: No gestures captured.");
-//       return;
-//     }
-  
-//     try {
-//       const response = await fetch("http://127.0.0.1:8000/generate_sentence/", {
-//         method: "POST",
-//         headers: { "Content-Type": "application/json" },
-//         body: JSON.stringify({ gestures: capturedGesture }),
-//       });
-  
-//       const data = await response.json();
-//       console.log("Response from API:", data); // Debugging
-  
-//       if (data.sentence) {
-//         setGesture(data.sentence);
-//       } else {
-//         setGesture("Failed to generate sentence");
-//       }
-//     } catch (error) {
-//       console.error("Error:", error);
-//     }
-//   };
-  
-  
-  
-//   return (
-//     <div>
-//       <h1>Sign Language Recognition</h1>
-//       <video ref={videoRef} autoPlay playsInline style={{ width: "640px", height: "480px", border: "1px solid black" }} />
-//       <p>Press "S" to capture gesture, "O" to generate sentence.</p>
-//       <p>Recognized Sentence: {gesture}</p>
-//       <div>
-//         <h2>Captured Gestures:</h2>
-//         <ul>
-//           {capturedGesture.map((gesture, index) => (
-//             <li key={index}>{gesture}</li>
-//           ))}
-//         </ul>
-//       </div>
-//     </div>
-//   );
-// };
-
-// export default App;
-
-// ------------
 import React, { useRef, useEffect, useState, useCallback } from "react";
+import "./App.css";
 
 const App = () => {
   const videoRef = useRef(null);
-  const [gesture, setGesture] = useState("");
-  const [capturedGesture, setCapturedGesture] = useState([]);
+  const intervalRef = useRef(null); // ✅ New stable reference for interval
+  const [sentence, setSentence] = useState("");
+  const [capturedGestures, setCapturedGestures] = useState([]);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [status, setStatus] = useState("Ready");
+  const [continuousMode, setContinuousMode] = useState(false);
 
+  // Initialize webcam on component mount
   useEffect(() => {
+    const currentVideo = videoRef.current;
     navigator.mediaDevices
-      .getUserMedia({ video: true })
+      .getUserMedia({
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: "user",
+        },
+      })
       .then((stream) => {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
         }
       })
-      .catch((error) => console.error("Error accessing webcam:", error));
+      .catch((error) => {
+        console.error("Error accessing webcam:", error);
+        setStatus("Failed to access webcam");
+      });
+
+    return () => {
+      if (currentVideo && currentVideo.srcObject) {
+        currentVideo.srcObject.getTracks().forEach((track) => track.stop());
+      }
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
   }, []);
 
-  // Function to capture frame from webcam
-  const captureFrame = async () => {
-    console.log("Capturing Frame...");
+  // Capture frame logic
+  const captureFrame = useCallback(async () => {
+    setStatus("Capturing...");
     const video = videoRef.current;
-    if (!video) return;
+    if (!video) {
+      setStatus("Video element not ready");
+      return;
+    }
 
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth;
@@ -165,7 +59,7 @@ const App = () => {
 
     canvas.toBlob(async (blob) => {
       if (!blob) {
-        console.error("Failed to capture frame");
+        setStatus("Failed to capture frame");
         return;
       }
 
@@ -173,60 +67,105 @@ const App = () => {
       formData.append("file", blob, "frame.jpg");
 
       try {
+        setIsCapturing(true);
         const response = await fetch("http://127.0.0.1:8000/predict/", {
           method: "POST",
           body: formData,
         });
 
         const data = await response.json();
-        console.log("Captured Gesture:", data.gesture);
 
-        if (data.gesture) {
-          setCapturedGesture((prevGestures) => [...prevGestures, data.gesture]);
+        if (data.gesture && data.gesture !== "No hand detected") {
+          setCapturedGestures((prevGestures) => {
+            const lastGesture =
+              prevGestures.length > 0
+                ? prevGestures[prevGestures.length - 1]
+                : null;
+            if (lastGesture !== data.gesture) {
+              setStatus(`Captured: ${data.gesture}`);
+              return [...prevGestures, data.gesture];
+            }
+            return prevGestures;
+          });
+        } else if (data.gesture === "No hand detected") {
+          setStatus("No hand detected");
         } else {
-          console.error("No valid gesture detected.");
+          setStatus("No valid gesture detected");
         }
       } catch (error) {
         console.error("Error:", error);
+        setStatus("Connection error");
+      } finally {
+        setIsCapturing(false);
       }
-    }, "image/jpeg");
-  };
+    }, "image/jpeg", 0.9);
+  }, []);
 
-  // Function to send captured gestures to LLM
+  // Generate sentence using LLM
   const sendToLLM = useCallback(async () => {
-    console.log("Captured Gestures before sending:", capturedGesture);
-
-    if (!capturedGesture || capturedGesture.length === 0) {
-      console.error("Error: No gestures captured.");
+    if (!capturedGestures || capturedGestures.length === 0) {
+      setStatus("No gestures captured");
       return;
     }
+
+    setStatus("Generating sentence...");
 
     try {
       const response = await fetch("http://127.0.0.1:8000/generate_sentence/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gestures: capturedGesture }),
+        body: JSON.stringify({ gestures: capturedGestures }),
       });
 
       const data = await response.json();
-      console.log("Response from API:", data);
 
       if (data.sentence) {
-        setGesture(data.sentence);
+        setSentence(data.sentence);
+        setStatus("Sentence generated");
       } else {
-        setGesture("Failed to generate sentence");
+        setSentence("Failed to generate sentence");
+        setStatus("Generation failed");
       }
     } catch (error) {
       console.error("Error:", error);
+      setStatus("Connection error");
     }
-  }, [capturedGesture]); // Now it only changes when capturedGesture changes
+  }, [capturedGestures]);
 
+  const clearGestures = useCallback(() => {
+    setCapturedGestures([]);
+    setSentence("");
+    setStatus("Gestures cleared");
+  }, []);
+
+  // ✅ Stable toggle logic for continuous mode
+  const toggleContinuousMode = useCallback(() => {
+    if (!continuousMode) {
+      const interval = setInterval(() => {
+        captureFrame();
+      }, 2000);
+      intervalRef.current = interval;
+      setContinuousMode(true);
+      setStatus("Continuous mode: ON");
+    } else {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+      setContinuousMode(false);
+      setStatus("Continuous mode: OFF");
+    }
+  }, [continuousMode, captureFrame]);
+
+  // ⌨️ Keyboard shortcut handler
   useEffect(() => {
     const handleKeyPress = (event) => {
       if (event.key === "s") {
         captureFrame();
       } else if (event.key === "o") {
         sendToLLM();
+      } else if (event.key === "c") {
+        clearGestures();
+      } else if (event.key === "m") {
+        toggleContinuousMode();
       }
     };
 
@@ -234,21 +173,86 @@ const App = () => {
     return () => {
       window.removeEventListener("keydown", handleKeyPress);
     };
-  }, [sendToLLM]); // Now the warning is resolved
+  }, [captureFrame, sendToLLM, clearGestures, toggleContinuousMode]);
 
   return (
-    <div>
+    <div className="app-container">
       <h1>Sign Language Recognition</h1>
-      <video ref={videoRef} autoPlay playsInline style={{ width: "640px", height: "480px", border: "1px solid black" }} />
-      <p>Press "S" to capture gesture, "O" to generate sentence.</p>
-      <p>Recognized Sentence: {gesture}</p>
-      <div>
+
+      <div className="video-container">
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          style={{
+            width: "100%",
+            maxWidth: "640px",
+            height: "auto",
+            border: "2px solid #3498db",
+            borderRadius: "8px",
+          }}
+        />
+        <div
+          className="status-indicator"
+          style={{ color: isCapturing ? "#e74c3c" : "#2ecc71" }}
+        >
+          {status}
+        </div>
+      </div>
+
+      <div className="controls">
+        <button
+          onClick={captureFrame}
+          disabled={isCapturing}
+          className="control-button capture"
+        >
+          Capture Gesture (S)
+        </button>
+        <button
+          onClick={sendToLLM}
+          disabled={capturedGestures.length === 0}
+          className="control-button generate"
+        >
+          Generate Sentence (O)
+        </button>
+        <button
+          onClick={clearGestures}
+          disabled={capturedGestures.length === 0}
+          className="control-button clear"
+        >
+          Clear Gestures (C)
+        </button>
+        <button
+          onClick={toggleContinuousMode}
+          className={`control-button ${
+            continuousMode ? "continuous-on" : "continuous-off"
+          }`}
+        >
+          {continuousMode ? "Stop Continuous (M)" : "Start Continuous (M)"}
+        </button>
+      </div>
+
+      <div className="result-container">
+        <h2>Generated Sentence:</h2>
+        <div className="sentence-display">
+          {sentence || "No sentence generated yet"}
+        </div>
+      </div>
+
+      <div className="gestures-container">
         <h2>Captured Gestures:</h2>
-        <ul>
-          {capturedGesture.map((gesture, index) => (
-            <li key={index}>{gesture}</li>
-          ))}
-        </ul>
+        {capturedGestures.length > 0 ? (
+          <div className="gesture-list">
+            {capturedGestures.map((gesture, index) => (
+              <span key={index} className="gesture-item">
+                {gesture}
+                {index < capturedGestures.length - 1 ? " → " : ""}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p>No gestures captured yet</p>
+        )}
       </div>
     </div>
   );
