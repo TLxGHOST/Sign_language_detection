@@ -13,7 +13,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 model = tf.keras.models.load_model("./models/model3.h5")
 label_encoder = LabelEncoder()
-label_encoder.classes_ = np.load('./models/label_class.npy') 
+# label_encoder.classes_ = np.load('./models/label_class2.npy').astype(str) 
+label_encoder.classes_ = np.load('./models/label_class.npy') # last wlae model ko chod ke baaki sab ke liye ye line hai 
+
 
 # Initialize Mediapipe for hand detection
 mp_hands = mp.solutions.hands
@@ -63,10 +65,12 @@ def process_image(image):
             cropped_hand = np.expand_dims(cropped_hand, axis=0) / 255.0
 
             predictions = model.predict(cropped_hand)
-            gesture_label_encoded = np.argmax(predictions, axis=1)[0]
+            #gesture_label_encoded = np.argmax(predictions, axis=1)[0]
+            gesture_label_encoded = np.argmax(predictions, axis=1)[0] #last wale ko chod ke baaki sab ke liye ye line hai 
             gesture_label = label_encoder.inverse_transform([gesture_label_encoded])[0]
 
-            return gesture_label
+            # return str(gesture_label)
+            return gesture_label # sirf last wale ko chod ke baaki sare models sahi return kar rahe hai
 
     return "No hand detected"
 
@@ -96,7 +100,7 @@ async def generate_sentence(input_data: GestureInput):
 
     model = genai.GenerativeModel("gemini-2.0-flash")
     response = model.generate_content(
-        f"Create a natural human-like sentence using only these words: {gestures}. Do not add extra words or phrases. the sentence should be coherent and grammatically correct."
+        f"Create a natural human-like sentence using only these words: {gestures}. Do not add extra words or phrases. the sentence should be coherent and grammatically correct. however you can change the arrangement of words "
     )
 
     sentence = response.text.strip() if response.text else "Error generating sentence."
