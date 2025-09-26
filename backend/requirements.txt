@@ -3,4 +3,5 @@ uvicorn
 numpy
 tensorflow
 pillow
+opencv-python
 google-generativeai
