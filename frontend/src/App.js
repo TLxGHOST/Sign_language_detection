@@ -1,17 +1,20 @@
-
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import "./App.css";
 
+// API endpoints as variables for easy configuration
+const API_BASE_URL = "http://127.0.0.1:8000";
+const PREDICT_API = `${API_BASE_URL}/predict/`;
+const GENERATE_SENTENCE_API = `${API_BASE_URL}/generate_sentence/`;
+
 const App = () => {
   const videoRef = useRef(null);
-  const intervalRef = useRef(null); // ✅ New stable reference for interval
+  const intervalRef = useRef(null);
   const [sentence, setSentence] = useState("");
   const [capturedGestures, setCapturedGestures] = useState([]);
   const [isCapturing, setIsCapturing] = useState(false);
   const [status, setStatus] = useState("Ready");
   const [continuousMode, setContinuousMode] = useState(false);
 
-  // Initialize webcam on component mount
   useEffect(() => {
     const currentVideo = videoRef.current;
     navigator.mediaDevices
@@ -42,7 +45,6 @@ const App = () => {
     };
   }, []);
 
-  // Capture frame logic
   const captureFrame = useCallback(async () => {
     setStatus("Capturing...");
     const video = videoRef.current;
@@ -68,7 +70,7 @@ const App = () => {
 
       try {
         setIsCapturing(true);
-        const response = await fetch("http://127.0.0.1:8000/predict/", {
+        const response = await fetch(PREDICT_API, {
           method: "POST",
           body: formData,
         });
@@ -101,7 +103,6 @@ const App = () => {
     }, "image/jpeg", 0.9);
   }, []);
 
-  // Generate sentence using LLM
   const sendToLLM = useCallback(async () => {
     if (!capturedGestures || capturedGestures.length === 0) {
       setStatus("No gestures captured");
@@ -111,7 +112,7 @@ const App = () => {
     setStatus("Generating sentence...");
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/generate_sentence/", {
+      const response = await fetch(GENERATE_SENTENCE_API, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ gestures: capturedGestures }),
@@ -138,7 +139,6 @@ const App = () => {
     setStatus("Gestures cleared");
   }, []);
 
-  // ✅ Stable toggle logic for continuous mode
   const toggleContinuousMode = useCallback(() => {
     if (!continuousMode) {
       const interval = setInterval(() => {
@@ -155,7 +155,6 @@ const App = () => {
     }
   }, [continuousMode, captureFrame]);
 
-  // ⌨️ Keyboard shortcut handler
   useEffect(() => {
     const handleKeyPress = (event) => {
       if (event.key === "s") {
