@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: fastapi-mediapipe-app
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    pythonVersion: 3.11
