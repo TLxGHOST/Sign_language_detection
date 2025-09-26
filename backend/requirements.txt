@@ -4,5 +4,5 @@ numpy
 tensorflow
 pillow
 opencv-python
-sklearn
+scikit-learn
 google-generativeai
