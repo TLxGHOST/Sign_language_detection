@@ -85,7 +85,7 @@ async def predict(file: UploadFile = File(...)):
     return {"gesture": gesture}
 
 # Google Gemini API Integration
-genai.configure(api_key="AIzaSyCzX4JF8MiHmeZR0beNcohgpS3Y29utEYo")
+genai.configure(api_key="AIzaSyCgx2Ny_P5PKNRGKdSpEPNmPr8MQq7DC3I")
 
 @app.post("/generate_sentence/")
 async def generate_sentence(input_data: GestureInput):
@@ -100,7 +100,7 @@ async def generate_sentence(input_data: GestureInput):
 
     model = genai.GenerativeModel("gemini-2.0-flash")
     response = model.generate_content(
-        f"Create a natural human-like sentence using only these words: {gestures}. Do not add extra words or phrases. the sentence should be coherent and grammatically correct. however you can change the arrangement of words "
+        f"Using only these words: {gestures}, generate a natural, concise, and grammatically correct sentence. You may rearrange the words and add minimal connecting words if necessary for clarity, but do not add unrelated content. The sentence should clearly convey the intended meaning as a human would express it. Use emojis only if they enhance understanding, and keep the response brief and to the point."
     )
 
     sentence = response.text.strip() if response.text else "Error generating sentence."
