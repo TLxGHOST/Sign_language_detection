@@ -13,4 +13,4 @@ tensorflow-cpu==2.14.0
 mediapipe==0.10.13
 
 pydantic==2.6.1
-google-generativeai==0.0.2
+google-generativeai==0.8.3
