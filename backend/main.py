@@ -9,6 +9,11 @@ from pydantic import BaseModel
 import json
 import google.generativeai as genai
 from fastapi.middleware.cors import CORSMiddleware
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 # Load the model
 
 model = tf.keras.models.load_model("./models/model3.h5")
@@ -85,7 +90,7 @@ async def predict(file: UploadFile = File(...)):
     return {"gesture": gesture}
 
 # Google Gemini API Integration
-genai.configure(api_key="AIzaSyCgx2Ny_P5PKNRGKdSpEPNmPr8MQq7DC3I")
+genai.configure(api_key=os.getenv("API_KEY"))
 
 @app.post("/generate_sentence/")
 async def generate_sentence(input_data: GestureInput):
